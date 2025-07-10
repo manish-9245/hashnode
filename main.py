@@ -32,14 +32,28 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
     raw2 = json2_file.read().decode('utf-8')
     system1 = json.loads(strip_comments(raw1))
     system2 = json.loads(strip_comments(raw2))
+    # If top-level is a list of dicts, merge into a single dict
+    if isinstance(system1, list):
+        merged = {}
+        for item in system1:
+            if isinstance(item, dict):
+                merged.update(item)
+        system1 = merged
+    if isinstance(system2, list):
+        merged = {}
+        for item in system2:
+            if isinstance(item, dict):
+                merged.update(item)
+        system2 = merged
     # If top-level values are stringified JSON, parse them
     for d in (system1, system2):
-        for k, v in d.items():
-            if isinstance(v, str):
-                try:
-                    d[k] = json.loads(strip_comments(v))
-                except Exception:
-                    pass
+        if isinstance(d, dict):  # ensure dict before iterating
+            for k, v in d.items():
+                if isinstance(v, str):
+                    try:
+                        d[k] = json.loads(strip_comments(v))
+                    except Exception:
+                        pass
     # Parse navigation paths
     nav_paths = [p.strip() for p in nav_input.split(',') if p.strip()]
     # Determine matching and orphan keys
