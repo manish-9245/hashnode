@@ -138,7 +138,12 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
             col_idx = df.columns.get_loc(path) + 1
             cell1 = ws.cell(row=i, column=col_idx)
             cell2 = ws.cell(row=j, column=col_idx)
-            v1, v2 = cell1.value, cell2.value
+            
+            # Get values from DataFrame instead of cells to avoid conversion issues
+            df_row1 = pair_start
+            df_row2 = pair_start + 1
+            v1 = df.at[df_row1, path]
+            v2 = df.at[df_row2, path]
             
             # Use the safe comparison function
             equal = values_equal(v1, v2)
