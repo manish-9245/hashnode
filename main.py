@@ -20,6 +20,31 @@ def get_nested_value(data, path):
 # Strip JavaScript-style comments from JSON strings
 def strip_comments(text):
     return re.sub(r'//.*', '', text)
+
+# Function to safely compare values that might be arrays
+def values_equal(v1, v2):
+    """Compare two values, handling arrays and None values properly"""
+    if v1 is None and v2 is None:
+        return True
+    if v1 is None or v2 is None:
+        return False
+    
+    # Handle numpy arrays, lists, and tuples
+    if isinstance(v1, (list, tuple, np.ndarray)) or isinstance(v2, (list, tuple, np.ndarray)):
+        try:
+            return np.array_equal(v1, v2)
+        except (ValueError, TypeError):
+            # If array_equal fails, convert to lists and compare
+            try:
+                return list(v1) == list(v2)
+            except (TypeError, ValueError):
+                return False
+    else:
+        # For scalar values
+        try:
+            return v1 == v2
+        except (ValueError, TypeError):
+            return False
     
 st.title("JSON Reconciliation App")
 
@@ -114,10 +139,9 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
             cell1 = ws.cell(row=i, column=col_idx)
             cell2 = ws.cell(row=j, column=col_idx)
             v1, v2 = cell1.value, cell2.value
-            if isinstance(v1, (list, tuple, np.ndarray)) or isinstance(v2, (list, tuple, np.ndarray)):
-                equal = np.array_equal(v1, v2)
-            else:
-                equal = (v1 == v2)
+            
+            # Use the safe comparison function
+            equal = values_equal(v1, v2)
             fill = green_fill if equal else red_fill
             cell1.fill = fill
             cell2.fill = fill
@@ -148,10 +172,9 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
         for path in nav_paths:
             v1 = df.at[i, path]
             v2 = df.at[j, path]
-            if isinstance(v1, (list, tuple, np.ndarray)) or isinstance(v2, (list, tuple, np.ndarray)):
-                equal = np.array_equal(v1, v2)
-            else:
-                equal = (v1 == v2)
+            
+            # Use the safe comparison function
+            equal = values_equal(v1, v2)
             color = "lightgreen" if equal else "lightcoral"
             styles.at[i, path] = f"background-color:{color}"
             styles.at[j, path] = f"background-color:{color}"
