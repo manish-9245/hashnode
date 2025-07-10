@@ -7,7 +7,6 @@ import io
 import re
 import numpy as np
 
-# Function to get nested value from dict based on navigation path
 def get_nested_value(data, path):
     keys = path.split('.')
     for key in keys:
@@ -17,40 +16,58 @@ def get_nested_value(data, path):
             return None
     return data
 
-# Strip JavaScript-style comments from JSON strings
 def strip_comments(text):
     return re.sub(r'//.*', '', text)
 
-# Function to safely compare values that might be arrays
 def values_equal(v1, v2):
-    """Compare two values, handling arrays and None values properly"""
+    """Compare two values recursively, handling nested structures"""
     if v1 is None and v2 is None:
         return True
     if v1 is None or v2 is None:
         return False
-    
-    # Handle numpy arrays, lists, and tuples
-    if isinstance(v1, (list, tuple, np.ndarray)) or isinstance(v2, (list, tuple, np.ndarray)):
-        try:
-            return np.array_equal(v1, v2)
-        except (ValueError, TypeError):
-            # If array_equal fails, convert to lists and compare
-            try:
-                return list(v1) == list(v2)
-            except (TypeError, ValueError):
-                return False
-    else:
-        # For scalar values
-        try:
-            return v1 == v2
-        except (ValueError, TypeError):
+
+    # Handle dictionaries
+    if isinstance(v1, dict) and isinstance(v2, dict):
+        if set(v1.keys()) != set(v2.keys()):
             return False
+        for key in v1:
+            if not values_equal(v1[key], v2[key]):
+                return False
+        return True
+
+    # Check if both are non-string sequences
+    v1_is_seq = isinstance(v1, (list, tuple, np.ndarray)) and not isinstance(v1, (str, bytes))
+    v2_is_seq = isinstance(v2, (list, tuple, np.ndarray)) and not isinstance(v2, (str, bytes))
     
+    if v1_is_seq and v2_is_seq:
+        try:
+            v1_list = list(v1)
+            v2_list = list(v2)
+        except TypeError:
+            return False
+            
+        if len(v1_list) != len(v2_list):
+            return False
+            
+        for i in range(len(v1_list)):
+            if not values_equal(v1_list[i], v2_list[i]):
+                return False
+        return True
+        
+    elif v1_is_seq or v2_is_seq:
+        return False
+        
+    # Handle all other types
+    try:
+        return v1 == v2
+    except (ValueError, TypeError):
+        return False
+
 st.title("JSON Reconciliation App")
 
 # File upload inputs
-json1_file = st.file_uploader("Upload System 1 JSON", type=["json"] )
-json2_file = st.file_uploader("Upload System 2 JSON", type=["json"] )
+json1_file = st.file_uploader("Upload System 1 JSON", type=["json"])
+json2_file = st.file_uploader("Upload System 2 JSON", type=["json"])
 nav_input = st.text_area("Enter navigation paths (comma-separated)", placeholder="key1.key2,key3.key4.key5")
 
 if st.button("Reconcile") and json1_file and json2_file and nav_input:
@@ -123,8 +140,8 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
     ws.append(df.columns.tolist())
     # Define fills
     green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-    red_fill   = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-    yellow_fill= PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+    red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+    yellow_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
 
     # Write data rows
     for i, row in enumerate(rows, start=2):
@@ -133,23 +150,20 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
 
     # Color Excel cells
     for pair_start in range(0, len(matches)*2, 2):
-        i, j = 2 + pair_start, 2 + pair_start + 1
+        df_row1 = pair_start
+        df_row2 = pair_start + 1
+        excel_row1 = 2 + pair_start
+        excel_row2 = 2 + pair_start + 1
+        
         for path in nav_paths:
             col_idx = df.columns.get_loc(path) + 1
-            cell1 = ws.cell(row=i, column=col_idx)
-            cell2 = ws.cell(row=j, column=col_idx)
-            
-            # Get values from DataFrame instead of cells to avoid conversion issues
-            df_row1 = pair_start
-            df_row2 = pair_start + 1
             v1 = df.at[df_row1, path]
             v2 = df.at[df_row2, path]
             
-            # Use the safe comparison function
             equal = values_equal(v1, v2)
             fill = green_fill if equal else red_fill
-            cell1.fill = fill
-            cell2.fill = fill
+            ws.cell(row=excel_row1, column=col_idx).fill = fill
+            ws.cell(row=excel_row2, column=col_idx).fill = fill
 
     # Orphans colored yellow
     orphan_start = 2 + len(matches)*2
@@ -177,8 +191,6 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
         for path in nav_paths:
             v1 = df.at[i, path]
             v2 = df.at[j, path]
-            
-            # Use the safe comparison function
             equal = values_equal(v1, v2)
             color = "lightgreen" if equal else "lightcoral"
             styles.at[i, path] = f"background-color:{color}"
