@@ -5,6 +5,7 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill
 import io
 import re
+import numpy as np
 
 # Function to get nested value from dict based on navigation path
 def get_nested_value(data, path):
@@ -67,7 +68,8 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
     rows = []
     # Matches: two rows per key (system1, system2)
     for key in matches:
-        id_, version = key.split('.', 1)
+        # split ID and version on last dot
+        id_, version = key.rsplit('.', 1)
         for sys_name, sys_data in [("system1", system1), ("system2", system2)]:
             row = {"system": sys_name, "id": id_, "version": version}
             for path in nav_paths:
@@ -75,14 +77,16 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
             rows.append(row)
     # Orphans in system1
     for key in orphans1:
-        id_, version = key.split('.', 1)
+        # split ID and version on last dot
+        id_, version = key.rsplit('.', 1)
         row = {"system": "system1", "id": id_, "version": version}
         for path in nav_paths:
             row[path] = get_nested_value(system1.get(key, {}), path)
         rows.append(row)
     # Orphans in system2
     for key in orphans2:
-        id_, version = key.split('.', 1)
+        # split ID and version on last dot
+        id_, version = key.rsplit('.', 1)
         row = {"system": "system2", "id": id_, "version": version}
         for path in nav_paths:
             row[path] = get_nested_value(system2.get(key, {}), path)
@@ -112,7 +116,13 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
             col_idx = df.columns.get_loc(path) + 1
             cell1 = ws.cell(row=base, column=col_idx)
             cell2 = ws.cell(row=base + 1, column=col_idx)
-            if cell1.value == cell2.value:
+            # handle scalar and array comparisons
+            if (hasattr(cell1.value, '__iter__') and not isinstance(cell1.value, (str, bytes))) or \
+               (hasattr(cell2.value, '__iter__') and not isinstance(cell2.value, (str, bytes))):
+                equal = np.array_equal(cell1.value, cell2.value)
+            else:
+                equal = cell1.value == cell2.value
+            if equal:
                 cell1.fill = green_fill
                 cell2.fill = green_fill
             else:
