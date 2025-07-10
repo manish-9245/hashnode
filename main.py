@@ -116,12 +116,15 @@ if st.button("Reconcile") and json1_file and json2_file and nav_input:
             col_idx = df.columns.get_loc(path) + 1
             cell1 = ws.cell(row=base, column=col_idx)
             cell2 = ws.cell(row=base + 1, column=col_idx)
-            # handle scalar and array comparisons
-            if (hasattr(cell1.value, '__iter__') and not isinstance(cell1.value, (str, bytes))) or \
-               (hasattr(cell2.value, '__iter__') and not isinstance(cell2.value, (str, bytes))):
-                equal = np.array_equal(cell1.value, cell2.value)
+            # Determine equality for scalar or sequence values
+            v1 = cell1.value
+            v2 = cell2.value
+            # Use array_equal for sequences, direct comparison for scalars
+            if isinstance(v1, (list, tuple, np.ndarray)) or isinstance(v2, (list, tuple, np.ndarray)):
+                equal = np.array_equal(v1, v2)
             else:
-                equal = cell1.value == cell2.value
+                equal = (v1 == v2)
+            # Apply coloring based on result
             if equal:
                 cell1.fill = green_fill
                 cell2.fill = green_fill
